@@ -7,7 +7,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-this-in-produc
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = [
-    "sonar-rock-vs-mine-project.onrender.com",
+    "*"
 ]
 
 INSTALLED_APPS = [
