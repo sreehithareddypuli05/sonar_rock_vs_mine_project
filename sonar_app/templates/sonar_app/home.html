@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Sonar Rock vs Mine Prediction</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#07111f;--card:#0d1f35;--border:#1a3a5c;
+  --green:#00e5a0;--red:#ff4d6d;--gold:#ffc947;
+  --blue:#41b3ff;--muted:#5a7a9a;--text:#d6eaff;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;padding:24px 16px 48px;}
+/* rings */
+.rings{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0;}
+.ring{position:absolute;top:50%;left:50%;border-radius:50%;border:1px solid rgba(0,229,160,.06);transform:translate(-50%,-50%);animation:ring 8s linear infinite;}
+.ring:nth-child(1){width:300px;height:300px;animation-delay:0s;}
+.ring:nth-child(2){width:600px;height:600px;animation-delay:2s;}
+.ring:nth-child(3){width:950px;height:950px;animation-delay:4s;}
+.ring:nth-child(4){width:1300px;height:1300px;animation-delay:6s;}
+@keyframes ring{0%{opacity:.5;transform:translate(-50%,-50%) scale(.97);}100%{opacity:0;transform:translate(-50%,-50%) scale(1.03);}}
+/* layout */
+.wrap{position:relative;z-index:1;max-width:980px;margin:0 auto;}
+/* header */
+.hdr{text-align:center;margin-bottom:28px;}
+.hdr-sub{font-size:.7rem;letter-spacing:3px;text-transform:uppercase;color:var(--green);margin-bottom:8px;}
+.hdr h1{font-size:clamp(1.5rem,4vw,2.2rem);font-weight:700;background:linear-gradient(90deg,var(--green),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.hdr p{color:var(--muted);font-size:.9rem;margin-top:6px;}
+/* card */
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;margin-bottom:18px;box-shadow:0 4px 32px rgba(0,0,0,.4);}
+.card-title{font-size:.65rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:16px;}
+/* result */
+.result-box{display:none;border-radius:10px;padding:18px 24px;margin-bottom:18px;text-align:center;font-size:1.25rem;font-weight:700;border:1px solid transparent;animation:pop .35s cubic-bezier(.175,.885,.32,1.275) both;}
+@keyframes pop{from{opacity:0;transform:scale(.93) translateY(-6px);}to{opacity:1;transform:scale(1) translateY(0);}}
+.result-box.rock{background:rgba(235, 225, 202, 0.08);border-color:var(--gold);color:var(--gold);}
+.result-box.mine{background:rgba(149, 142, 143, 0.08);border-color:var(--red);color:var(--red);}
+.result-box.err {background:rgba(90,122,154,.1);border-color:var(--muted);color:var(--muted);}
+/* confidence bars */
+.conf{margin-bottom:18px;display:none;}
+.conf-row{margin-bottom:8px;}
+.conf-lbl{display:flex;justify-content:space-between;font-size:.75rem;margin-bottom:4px;color:var(--muted);}
+.conf-lbl span:last-child{color:var(--text);font-weight:600;}
+.conf-track{background:rgba(255,255,255,.05);border-radius:99px;height:8px;overflow:hidden;}
+.conf-fill{height:100%;border-radius:99px;width:0%;transition:width .9s cubic-bezier(.4,0,.2,1);}
+.conf-fill.rock{background:linear-gradient(90deg,var(--gold),#ff9900);}
+.conf-fill.mine{background:linear-gradient(90deg,var(--red),#ff1744);}
+/* toolbar */
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+.btn{border:1px solid;background:transparent;border-radius:7px;padding:6px 14px;font-size:.75rem;cursor:pointer;transition:background .15s,transform .1s;color:inherit;}
+.btn:hover{transform:translateY(-1px);}
+.btn-rock{border-color:var(--gold);color:var(--gold);}      .btn-rock:hover{background:rgba(255,201,71,.1);}
+.btn-mine{border-color:var(--red);color:var(--red);}       .btn-mine:hover{background:rgba(255,77,109,.1);}
+.btn-rand{border-color:var(--blue);color:var(--blue);}     .btn-rand:hover{background:rgba(65,179,255,.1);}
+.btn-clr{border-color:var(--muted);color:var(--muted);}    .btn-clr:hover{background:rgba(90,122,154,.1);}
+.btn-rst{border-color:var(--muted);color:var(--muted);}    .btn-rst:hover{background:rgba(90,122,154,.1);}
+/* input grid */
+.grid60{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin-bottom:18px;}
+@media(max-width:600px){.grid60{grid-template-columns:repeat(6,1fr);}}
+.fcell label{display:block;font-size:.58rem;color:var(--muted);text-align:center;margin-bottom:2px;}
+.fcell input{
+  width:100%;background:rgba(7,17,31,.8);border:1px solid var(--border);
+  border-radius:5px;color:var(--text);font-size:.7rem;
+  text-align:center;padding:4px 2px;
+  -moz-appearance:textfield;
+  transition:border-color .15s,background .15s;
+}
+.fcell input::-webkit-inner-spin-button,.fcell input::-webkit-outer-spin-button{-webkit-appearance:none;}
+.fcell input:focus{outline:none;border-color:var(--green);background:rgba(0,229,160,.04);}
+.fcell input.hi{border-color:rgba(255,77,109,.5);color:#ff8fa3;}
+.fcell input.lo{border-color:rgba(0,229,160,.3);color:#6fffd4;}
+/* predict button */
+.predict-btn{display:block;margin:0 auto;background:linear-gradient(90deg,var(--green),var(--blue));color:#07111f;font-weight:700;font-size:1rem;border:none;border-radius:10px;padding:12px 40px;cursor:pointer;box-shadow:0 0 24px rgba(0,229,160,.3);transition:opacity .2s,transform .15s,box-shadow .2s;}
+.predict-btn:hover{opacity:.9;transform:translateY(-2px);box-shadow:0 0 36px rgba(0,229,160,.45);}
+.predict-btn:active{transform:translateY(0);}
+/* charts */
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+@media(max-width:640px){.chart-grid{grid-template-columns:1fr;}}
+.cbox{background:rgba(7,17,31,.7);border:1px solid var(--border);border-radius:10px;padding:14px;}
+.cbox h6{font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--green);margin-bottom:10px;}
+.cbox-inner{position:relative;height:175px;}
+.empty-msg{display:flex;align-items:center;justify-content:center;height:100%;font-size:.78rem;color:var(--muted);}
+.stats-table{width:100%;font-size:.72rem;color:var(--muted);}
+.stats-table td{padding:6px 2px;border-bottom:1px solid rgba(255,255,255,.04);}
+.stats-table td:last-child{text-align:right;color:var(--green);font-weight:600;}
+</style>
+</head>
+<body>
+
+<div class="rings">
+  <div class="ring"></div><div class="ring"></div>
+  <div class="ring"></div><div class="ring"></div>
+</div>
+
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="hdr">
+    <div class="hdr-sub">&#9670; Deep Sea Classifier</div>
+    <h1>Sonar Rock vs Mine Prediction</h1>
+    <p>Enter 60 sonar frequency features &mdash; the ML model classifies the object</p>
+  </div>
+
+  <!-- Result box: driven entirely by JS, never by Django template directly -->
+  <div class="result-box" id="resultBox"></div>
+
+  <!-- Input card -->
+  <div class="card">
+    <div class="card-title">&#9654; Sonar Feature Inputs &mdash; f0 through f59</div>
+
+    <div class="toolbar">
+      <button class="btn btn-rock" type="button" onclick="loadSample('rock')">&#129395; Rock Sample</button>
+      <button class="btn btn-mine" type="button" onclick="loadSample('mine')">&#128163; Mine Sample</button>
+      <button class="btn btn-rand" type="button" onclick="loadRandom()">&#127922; Random</button>
+      <button class="btn btn-clr"  type="button" onclick="clearAll()">&#10005; Clear</button>
+      <button class="btn btn-rst"  type="button" onclick="hardReset()">&#8635; Reset Page</button>
+    </div>
+
+    <form method="POST" id="sonarForm">
+      {% csrf_token %}
+      <div class="grid60" id="grid60">
+        {% for i in feature_range %}
+        <div class="fcell">
+          <label for="f{{ i }}">f{{ i }}</label>
+          <input type="number" step="any" min="0" max="1"
+                 name="f{{ i }}" id="f{{ i }}"
+                 placeholder="0.00" required
+                 oninput="onInput(this)"/>
+        </div>
+        {% endfor %}
+      </div>
+      <button type="submit" class="predict-btn">&#9670; PREDICT</button>
+    </form>
+  </div>
+
+  <!-- Analysis card -->
+  <div class="card">
+    <div class="card-title">&#9654; Signal Analysis</div>
+
+    <!-- Confidence bars -->
+    <div class="conf" id="confSection">
+      <div class="conf-row">
+        <div class="conf-lbl"><span>&#129395; Rock</span><span id="rockPct">0%</span></div>
+        <div class="conf-track"><div class="conf-fill rock" id="rockFill"></div></div>
+      </div>
+      <div class="conf-row">
+        <div class="conf-lbl"><span>&#128163; Mine</span><span id="minePct">0%</span></div>
+        <div class="conf-track"><div class="conf-fill mine" id="mineFill"></div></div>
+      </div>
+    </div>
+
+    <!-- 4 charts -->
+    <div class="chart-grid">
+
+      <div class="cbox">
+        <h6>Signal Waveform</h6>
+        <div class="cbox-inner">
+          <div class="empty-msg" id="lineEmpty">Load data to visualise</div>
+          <canvas id="lineChart" style="display:none;"></canvas>
+        </div>
+      </div>
+
+      <div class="cbox">
+        <h6>Band Energy (10 Bands)</h6>
+        <div class="cbox-inner">
+          <div class="empty-msg" id="barEmpty">Load data to visualise</div>
+          <canvas id="barChart" style="display:none;"></canvas>
+        </div>
+      </div>
+
+      <div class="cbox">
+        <h6>Frequency Radar</h6>
+        <div class="cbox-inner">
+          <div class="empty-msg" id="radarEmpty">Load data to visualise</div>
+          <canvas id="radarChart" style="display:none;"></canvas>
+        </div>
+      </div>
+
+      <div class="cbox">
+        <h6>Signal Statistics</h6>
+        <div class="cbox-inner" id="statsBox">
+          <div class="empty-msg">Load data to see stats</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<script>
+// ═══════════════════════════════════════════
+// 1. REAL DATA SAMPLES
+// ═══════════════════════════════════════════
+var ROCK = [0.0200,0.0371,0.0428,0.0207,0.0954,0.0986,0.1539,0.1601,0.3109,0.2111,0.1609,0.1582,0.2238,0.0645,0.0660,0.2273,0.3100,0.2999,0.5078,0.4797,0.5783,0.5071,0.4328,0.5550,0.6711,0.6415,0.7104,0.8080,0.6791,0.3857,0.1307,0.2604,0.5121,0.7547,0.8537,0.8507,0.6692,0.6097,0.4943,0.2744,0.0510,0.2834,0.2825,0.4256,0.2641,0.1386,0.1051,0.1343,0.0383,0.0324,0.0232,0.0027,0.0065,0.0159,0.0072,0.0167,0.0180,0.0084,0.0090,0.0032];
+var MINE = [0.0262,0.0582,0.1099,0.1083,0.0974,0.2280,0.2431,0.3771,0.5598,0.6194,0.6333,0.7344,0.7682,0.7738,0.8235,0.7931,0.7309,0.7236,0.7076,0.5901,0.6200,0.5959,0.5459,0.4595,0.4971,0.5315,0.5804,0.6282,0.5568,0.3669,0.2040,0.2436,0.3122,0.2978,0.2683,0.2829,0.2455,0.2552,0.2826,0.2733,0.2647,0.1879,0.1333,0.0875,0.0937,0.0881,0.0710,0.0466,0.0509,0.0317,0.0152,0.0348,0.0290,0.0375,0.0424,0.0346,0.0217,0.0053,0.0081,0.0083];
+
+// ═══════════════════════════════════════════
+// 2. CHART INSTANCES
+// ═══════════════════════════════════════════
+var lineInst=null, barInst=null, radarInst=null;
+
+// ═══════════════════════════════════════════
+// 3. INPUT HELPERS
+// ═══════════════════════════════════════════
+function getValues(){
+  var v=[];
+  for(var i=0;i<60;i++){
+    var el=document.getElementById('f'+i);
+    var n=parseFloat(el.value);
+    v.push(isNaN(n)?0:n);
+  }
+  return v;
+}
+
+function colorEl(el){
+  el.classList.remove('hi','lo');
+  if(el.value==='') return;
+  var v=parseFloat(el.value);
+  if(isNaN(v)) return;
+  if(v>=0.5) el.classList.add('hi');
+  else if(v<0.2) el.classList.add('lo');
+}
+
+function onInput(el){
+  colorEl(el);
+  updateCharts();
+}
+
+function setValues(arr){
+  for(var i=0;i<60;i++){
+    var el=document.getElementById('f'+i);
+    el.value=arr[i].toFixed(4);
+    colorEl(el);
+  }
+  updateCharts();
+}
+
+function loadSample(type){
+  setValues(type==='rock'?ROCK:MINE);
+}
+
+function loadRandom(){
+  var base=Math.random()>0.5?ROCK:MINE;
+  var v=base.map(function(x){
+    return Math.min(1,Math.max(0,x+(Math.random()-.5)*.12));
+  });
+  setValues(v);
+}
+
+function clearAll(){
+  for(var i=0;i<60;i++){
+    var el=document.getElementById('f'+i);
+    el.value='';
+    el.classList.remove('hi','lo');
+  }
+  hideResult();
+  clearCharts();
+}
+
+// ═══════════════════════════════════════════
+// 4. RESET PAGE — THE CORRECT FIX
+// Navigate to ?r=1  →  JS sees flag →  skips
+// restoring Django POST values → strips param
+// ═══════════════════════════════════════════
+function hardReset(){
+  window.location.href=window.location.pathname+'?r=1';
+}
+
+// ═══════════════════════════════════════════
+// 5. RESULT BANNER (100% JS controlled)
+// ═══════════════════════════════════════════
+function showResult(text, cls){
+  var el=document.getElementById('resultBox');
+  el.className='result-box '+cls;
+  el.innerHTML=text;
+  el.style.display='block';
+}
+function hideResult(){
+  var el=document.getElementById('resultBox');
+  el.style.display='none';
+  el.className='result-box';
+}
+
+// ═══════════════════════════════════════════
+// 6. CONFIDENCE BARS
+// ═══════════════════════════════════════════
+function showConf(rockPct, minePct){
+  document.getElementById('confSection').style.display='block';
+  document.getElementById('rockPct').textContent=rockPct.toFixed(1)+'%';
+  document.getElementById('minePct').textContent=minePct.toFixed(1)+'%';
+  setTimeout(function(){
+    document.getElementById('rockFill').style.width=rockPct+'%';
+    document.getElementById('mineFill').style.width=minePct+'%';
+  },80);
+}
+function hideConf(){
+  document.getElementById('confSection').style.display='none';
+  document.getElementById('rockFill').style.width='0%';
+  document.getElementById('mineFill').style.width='0%';
+}
+
+// ═══════════════════════════════════════════
+// 7. CHARTS
+// ═══════════════════════════════════════════
+var COPTS={animation:{duration:600},responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}};
+
+function showCanvas(cid,eid){
+  document.getElementById(eid).style.display='none';
+  document.getElementById(cid).style.display='block';
+}
+function hideCanvas(cid,eid){
+  document.getElementById(cid).style.display='none';
+  document.getElementById(eid).style.display='flex';
+}
+
+function clearCharts(){
+  hideCanvas('lineChart','lineEmpty');
+  hideCanvas('barChart','barEmpty');
+  hideCanvas('radarChart','radarEmpty');
+  document.getElementById('statsBox').innerHTML='<div class="empty-msg">Load data to see stats</div>';
+  if(lineInst){lineInst.destroy();lineInst=null;}
+  if(barInst){barInst.destroy();barInst=null;}
+  if(radarInst){radarInst.destroy();radarInst=null;}
+  hideConf();
+}
+
+function updateCharts(){
+  var vals=getValues();
+  var hasData=vals.some(function(v){return v>0;});
+  if(!hasData){clearCharts();return;}
+
+  var labels60=Array.from({length:60},function(_,i){return 'f'+i;});
+  var G='rgba(0,229,160,.85)',GA='rgba(0,229,160,.12)';
+  var B='rgba(65,179,255,.85)',BA='rgba(65,179,255,.12)';
+  var sc={x:{ticks:{color:'#3a6080',font:{size:9},maxTicksLimit:10},grid:{color:'rgba(255,255,255,.04)'}},
+          y:{min:0,max:1,ticks:{color:'#3a6080',font:{size:9}},grid:{color:'rgba(255,255,255,.04)'}}};
+
+  // Line chart
+  showCanvas('lineChart','lineEmpty');
+  if(lineInst)lineInst.destroy();
+  lineInst=new Chart(document.getElementById('lineChart'),{
+    type:'line',
+    data:{labels:labels60,datasets:[{data:vals,borderColor:G,backgroundColor:GA,borderWidth:1.5,pointRadius:0,fill:true,tension:.35}]},
+    options:{...COPTS,scales:sc}
+  });
+
+  // Bar chart — 10 bands
+  showCanvas('barChart','barEmpty');
+  var bv=Array.from({length:10},function(_,i){
+    var s=vals.slice(i*6,i*6+6);
+    return +(s.reduce(function(a,b){return a+b;},0)/6).toFixed(4);
+  });
+  if(barInst)barInst.destroy();
+  barInst=new Chart(document.getElementById('barChart'),{
+    type:'bar',
+    data:{
+      labels:['B1','B2','B3','B4','B5','B6','B7','B8','B9','B10'],
+      datasets:[{data:bv,backgroundColor:bv.map(function(v){return v>=0.5?'rgba(255,77,109,.75)':'rgba(0,229,160,.65)';}),borderRadius:4,borderSkipped:false}]
+    },
+    options:{...COPTS,scales:{x:{ticks:{color:'#3a6080',font:{size:9}},grid:{display:false}},y:{min:0,max:1,ticks:{color:'#3a6080',font:{size:9}},grid:{color:'rgba(255,255,255,.04)'}}}}
+  });
+
+  // Radar chart — every 6th feature
+  showCanvas('radarChart','radarEmpty');
+  var rl=Array.from({length:10},function(_,i){return 'f'+(i*6);});
+  var rv=rl.map(function(_,i){return vals[i*6];});
+  if(radarInst)radarInst.destroy();
+  radarInst=new Chart(document.getElementById('radarChart'),{
+    type:'radar',
+    data:{labels:rl,datasets:[{data:rv,borderColor:B,backgroundColor:BA,borderWidth:1.5,pointRadius:3,pointBackgroundColor:B}]},
+    options:{...COPTS,scales:{r:{min:0,max:1,ticks:{display:false},grid:{color:'rgba(255,255,255,.06)'},pointLabels:{color:'#3a6080',font:{size:9}},angleLines:{color:'rgba(255,255,255,.06)'}}}}
+  });
+
+  // Stats
+  var mean=vals.reduce(function(a,b){return a+b;},0)/60;
+  var mx=Math.max.apply(null,vals);
+  var mn=Math.min.apply(null,vals);
+  var std=Math.sqrt(vals.map(function(v){return Math.pow(v-mean,2);}).reduce(function(a,b){return a+b;},0)/60);
+  var energy=vals.map(function(v){return v*v;}).reduce(function(a,b){return a+b;},0);
+  var highN=vals.filter(function(v){return v>=0.5;}).length;
+  var rows=[['Mean',mean.toFixed(4)],['Std Dev',std.toFixed(4)],['Min',mn.toFixed(4)],['Max',mx.toFixed(4)],['Energy (Σv²)',energy.toFixed(4)],['Bands ≥ 0.5',highN+' / 60']];
+  document.getElementById('statsBox').innerHTML='<table class="stats-table"><tbody>'+rows.map(function(r){return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>';}).join('')+'</tbody></table>';
+}
+
+// ═══════════════════════════════════════════
+// 8. BOOT — read Django context safely
+// ═══════════════════════════════════════════
+
+// Django injects prediction & input_values via template tags.
+// We read them ONCE here and use JS to display — never let
+// Django template conditionals control the DOM directly,
+// so that hardReset() can fully suppress them.
+
+var params=new URLSearchParams(window.location.search);
+var IS_RESET=params.get('r')==='1';
+
+if(IS_RESET){
+  // Strip the param so URL looks clean, show nothing
+  history.replaceState({},'',window.location.pathname);
+  // Do NOT read any Django values
+} else {
+
+  // --- Restore input values from last POST ---
+  // Django passes input_values as a Python dict rendered to JSON
+  // We use the |safe filter on the JSON string (see context note in views.py)
+  var sv = null;
+  try {
+    // input_values is a dict like {"f0": 0.02, "f1": 0.037, ...}
+    sv = JSON.parse('{{ input_values_json|escapejs }}');
+  } catch(e){ sv=null; }
+
+  if(sv && Object.keys(sv).length>0){
+    for(var i=0;i<60;i++){
+      var el=document.getElementById('f'+i);
+      var key='f'+i;
+      if(el && sv[key]!==undefined){
+        el.value=parseFloat(sv[key]).toFixed(4);
+        colorEl(el);
+      }
+    }
+    updateCharts();
+  }
+
+  // --- Show prediction result ---
+  var pred='{{ prediction|default:"" }}';
+  var err='{{ error|default:"" }}';
+  var rockPct={{ rock_pct|default:"null" }};
+  var minePct={{ mine_pct|default:"null" }};
+
+  if(err && err.trim()!==''){
+    showResult('&#9888; '+err,'err');
+  } else if(pred && pred.trim()!==''){
+    if(pred==='Rock'){
+      showResult('&#129395; Prediction: <strong>ROCK</strong>','rock');
+    } else {
+      showResult('&#128163; Prediction: <strong>MINE</strong>','mine');
+    }
+    // Show confidence bars — use real proba if available, else heuristic
+    if(rockPct!==null && minePct!==null){
+      showConf(rockPct, minePct);
+    } else {
+      // Fallback heuristic
+      var vals2=getValues();
+      var mean2=vals2.reduce(function(a,b){return a+b;},0)/60;
+      var mineEst=Math.min(97,Math.max(55,mean2*130));
+      var rockEst=100-mineEst;
+      if(pred==='Rock'){showConf(mineEst,rockEst);}
+      else{showConf(rockEst,mineEst);}
+    }
+  }
+}
+</script>
+</body>
+</html>
